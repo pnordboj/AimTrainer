@@ -5,7 +5,6 @@ using Avalonia.Threading;
 using System;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -14,7 +13,6 @@ namespace AimTrainerAIController
 {
     public partial class MainWindow : Window
     {
-        private FileSystemWatcher fileWatcher;
         private Process aimTrainerProcess;
         private CancellationTokenSource cancellationTokenSource;
         private double currentProgress = 0.0;
@@ -37,37 +35,7 @@ namespace AimTrainerAIController
 
         private void GameSelectionComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            var selectedGame = (e.AddedItems[0] as ComboBoxItem)?.Content.ToString().ToLower();
-            if (!string.IsNullOrEmpty(selectedGame))
-            {
-                UpdateFileWatcher(selectedGame);
-            }
-        }
-
-        private void UpdateFileWatcher(string game)
-        {
-            var videoDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "videos", game);
-            if (fileWatcher != null)
-            {
-                fileWatcher.Dispose();
-            }
-
-            if (Directory.Exists(videoDirectory))
-            {
-                fileWatcher = new FileSystemWatcher(videoDirectory)
-                {
-                    NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite
-                };
-                fileWatcher.Changed += OnVideoFilesChanged;
-                fileWatcher.Created += OnVideoFilesChanged;
-                fileWatcher.Deleted += OnVideoFilesChanged;
-                fileWatcher.EnableRaisingEvents = true;
-            }
-        }
-
-        private void OnVideoFilesChanged(object sender, FileSystemEventArgs e)
-        {
-            // Handle file changes if needed
+            // No need to update file watcher here since we're monitoring game processes
         }
 
         private void StartButton_Click(object sender, RoutedEventArgs e)
@@ -75,21 +43,6 @@ namespace AimTrainerAIController
             if (aimTrainerProcess == null)
             {
                 string selectedGame = ((ComboBoxItem)GameSelector.SelectedItem)?.Content.ToString().ToLower();
-                string videoFolder = Path.Combine("videos", selectedGame);
-
-                if (!Directory.Exists(videoFolder))
-                {
-                    UpdateConsoleOutput($"Error: Video folder for {selectedGame} does not exist.");
-                    return;
-                }
-
-                var videoFiles = Directory.GetFiles(videoFolder, "*.mp4");
-
-                if (videoFiles.Length == 0)
-                {
-                    UpdateConsoleOutput($"Error: No video files found in {videoFolder}.");
-                    return;
-                }
 
                 cancellationTokenSource = new CancellationTokenSource();
 
@@ -98,7 +51,7 @@ namespace AimTrainerAIController
                     StartInfo = new ProcessStartInfo
                     {
                         FileName = "AimTrainerAI.exe",
-                        Arguments = $"{selectedGame} {string.Join(" ", videoFiles)}",
+                        Arguments = selectedGame,
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
                         UseShellExecute = false,
@@ -113,8 +66,8 @@ namespace AimTrainerAIController
                         Dispatcher.UIThread.Post(() =>
                         {
                             ConsoleOutput.Text += $"{ea.Data}\n";
-                            var progressText = GetProgressFromOutput(ea.Data);
-                            ProgressPercentage.Text = $"Model Training: {progressText}";
+                            double progress = GetProgressFromOutput(ea.Data);
+                            ProgressPercentage.Text = $"Model Training: {progress:0.00}%";
                         });
                     }
                 };
@@ -164,7 +117,7 @@ namespace AimTrainerAIController
             }
         }
 
-        private string GetProgressFromOutput(string output)
+        private double GetProgressFromOutput(string output)
         {
             // Extract progress from output if available
             string pattern = @"Progress:\s*(\d+(\.\d+)?)%";
@@ -172,9 +125,8 @@ namespace AimTrainerAIController
             if (match.Success)
             {
                 currentProgress = double.Parse(match.Groups[1].Value);
-                return currentProgress.ToString("0.00");
             }
-            return string.Empty;
+            return currentProgress;
         }
 
         private void UpdateConsoleOutput(string output)

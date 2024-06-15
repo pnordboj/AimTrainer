@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("AimTrainerAIController")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+5b9adb24f381fe9876e0b78c683661550de93911")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ce78f19d034010717e07f785f0a8fb006beacaee")]
 [assembly: System.Reflection.AssemblyProductAttribute("AimTrainerAIController")]
 [assembly: System.Reflection.AssemblyTitleAttribute("AimTrainerAIController")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

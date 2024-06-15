@@ -1,7 +1,9 @@
 ﻿using Microsoft.ML;
 using Microsoft.ML.Data;
-using Newtonsoft.Json;
 using OpenCvSharp;
+using SharpDX;
+using SharpDX.Direct3D11;
+using SharpDX.DXGI;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -9,63 +11,111 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Device = SharpDX.Direct3D11.Device;
 
 namespace AimTrainerAI
 {
     class Program
     {
-        private static readonly string[] SupportedGames = { "VALORANT.exe", "fortnite.exe", "cs2.exe" };
+        private static readonly string[] SupportedGames = { "VALORANT", "FortniteClient-Win64-Shipping", "cs2" };
         private static MLContext mlContext;
         private static ITransformer model;
         private static List<TrainingData> trainingData;
         private static TemplateMatching templateMatching;
         private static PredictionEngine<TrainingData, AimPrediction> predictionEngine;
         private static CancellationTokenSource monitoringCancellationTokenSource;
+        private ScreenCapture screenCapture;
 
         // Store crosshair positions with timestamps
         private static List<(int frameIndex, Point crosshairPosition)> crosshairHistory = new List<(int frameIndex, Point crosshairPosition)>();
 
         static async Task Main(string[] args)
         {
+            var program = new Program();
+            program.Run(args);
+        }
+
+        private void Run(string[] args)
+        {
             mlContext = new MLContext();
             trainingData = new List<TrainingData>();
+            screenCapture = new ScreenCapture();
 
             Console.WriteLine("AimTrainerAI Console Application");
             Console.WriteLine("Commands: 'process <video_path>', 'start', 'stop', 'exit'");
 
-            while (true)
+            if (args.Length > 0)
             {
-                var input = Console.ReadLine();
-                var command = input.Split(' ');
-
-                switch (command[0])
+                string selectedGame = args[0].ToLower();
+                if (SupportedGames.Contains(selectedGame))
                 {
-                    case "process":
-                        if (command.Length > 1)
-                        {
-                            await ProcessVideoAsync(command[1]);
-                        }
-                        else
-                        {
-                            Console.WriteLine("Usage: process <video_path>");
-                        }
-                        break;
-                    case "start":
-                        StartMonitoring();
-                        break;
-                    case "stop":
-                        StopMonitoring();
-                        break;
-                    case "exit":
-                        return;
-                    default:
-                        Console.WriteLine("Unknown command");
-                        break;
+                    StartMonitoring(selectedGame).Wait();
+                }
+                else
+                {
+                    Console.WriteLine("Unsupported game.");
+                }
+            }
+            else
+            {
+                while (true)
+                {
+                    var input = Console.ReadLine();
+                    var command = input.Split(' ');
+
+                    switch (command[0])
+                    {
+                        case "process":
+                            if (command.Length > 1)
+                            {
+                                ProcessVideoAsync(command[1]).Wait();
+                            }
+                            else
+                            {
+                                Console.WriteLine("Usage: process <video_path>");
+                            }
+                            break;
+                        case "start":
+                            if (command.Length > 1)
+                            {
+                                StartMonitoring(command[1]).Wait();
+                            }
+                            else
+                            {
+                                Console.WriteLine("Usage: start <game_name>");
+                            }
+                            break;
+                        case "stop":
+                            StopMonitoring();
+                            break;
+                        case "exit":
+                            screenCapture.Dispose();
+                            return;
+                        default:
+                            Console.WriteLine("Unknown command");
+                            break;
+                    }
                 }
             }
         }
 
-        private static async Task ProcessVideoAsync(string videoPath)
+        private async Task StartMonitoring(string selectedGame)
+        {
+            monitoringCancellationTokenSource = new CancellationTokenSource();
+            var token = monitoringCancellationTokenSource.Token;
+
+            await MonitorGameProcesses(selectedGame, token);
+            Console.WriteLine("Started monitoring game processes.");
+        }
+
+        private void StopMonitoring()
+        {
+            monitoringCancellationTokenSource?.Cancel();
+            monitoringCancellationTokenSource = null;
+            Console.WriteLine("Stopped monitoring game processes.");
+        }
+
+        private async Task ProcessVideoAsync(string videoPath)
         {
             if (!File.Exists(videoPath))
             {
@@ -83,7 +133,7 @@ namespace AimTrainerAI
             Console.WriteLine("Video processing and model training completed.");
         }
 
-        private static string DetectGameFromVideoPath(string videoPath)
+        private string DetectGameFromVideoPath(string videoPath)
         {
             // Simple logic to detect game from video path, you can improve this
             if (videoPath.ToLower().Contains("valorant")) return "valorant";
@@ -92,7 +142,7 @@ namespace AimTrainerAI
             throw new InvalidOperationException("Unsupported game detected from video path.");
         }
 
-        private static async Task AnalyzeVideoAsync(string videoPath)
+        private async Task AnalyzeVideoAsync(string videoPath)
         {
             var capture = new VideoCapture(videoPath);
             var totalFrames = capture.FrameCount;
@@ -100,8 +150,7 @@ namespace AimTrainerAI
 
             for (var frameIndex = 0; frameIndex < totalFrames; frameIndex++)
             {
-                Mat frame = new Mat();
-                capture.Read(frame);
+                capture.Read(out var frame);
                 if (frame.Empty())
                     break;
 
@@ -117,7 +166,7 @@ namespace AimTrainerAI
             Console.WriteLine("Video analysis completed.");
         }
 
-        private static void AnalyzeFrame(Mat frame, int frameIndex)
+        private void AnalyzeFrame(Mat frame, int frameIndex)
         {
             Mat grayFrame = new Mat();
             Cv2.CvtColor(frame, grayFrame, ColorConversionCodes.BGR2GRAY);
@@ -125,15 +174,7 @@ namespace AimTrainerAI
             (bool crosshairDetected, Point crosshairPosition) = templateMatching.MatchTemplate(grayFrame, "crosshairs");
             (bool hitDetected, Point hitPosition) = templateMatching.MatchTemplate(grayFrame, "hit_markers");
 
-            if (crosshairDetected)
-            {
-                // Store the detected crosshair position and frame index
-                crosshairHistory.Add((frameIndex, crosshairPosition));
-            }
-
-            bool enemyDetected = DetectEnemyOutline(frame);
-
-            bool hit = hitDetected && enemyDetected && IsPlayerHit(frameIndex, hitPosition);
+            bool hit = hitDetected && IsPlayerHit(frameIndex, hitPosition);
 
             var data = new TrainingData
             {
@@ -143,23 +184,6 @@ namespace AimTrainerAI
             };
             trainingData.Add(data);
         }
-
-        private static bool DetectEnemyOutline(Mat frame)
-        {
-            string[] outlineCategories = { "enemy_outlines/default", "enemy_outlines/tritanopia", "enemy_outlines/deuteranopia", "enemy_outlines/protanopia" };
-
-            foreach (var category in outlineCategories)
-            {
-                (bool detected, Point position) = templateMatching.MatchTemplate(frame, category);
-                if (detected)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
 
         private static bool IsPlayerHit(int frameIndex, Point hitPosition)
         {
@@ -186,7 +210,7 @@ namespace AimTrainerAI
             return false;
         }
 
-        private static void TrainModel()
+        private void TrainModel()
         {
             var dataView = mlContext.Data.LoadFromEnumerable(trainingData);
 
@@ -200,47 +224,23 @@ namespace AimTrainerAI
             predictionEngine = mlContext.Model.CreatePredictionEngine<TrainingData, AimPrediction>(model);
         }
 
-        private static void StartMonitoring()
-        {
-            if (monitoringCancellationTokenSource != null)
-            {
-                Console.WriteLine("Monitoring is already running.");
-                return;
-            }
-
-            monitoringCancellationTokenSource = new CancellationTokenSource();
-            var token = monitoringCancellationTokenSource.Token;
-
-            Task.Run(() => MonitorGameProcesses(token), token);
-            Console.WriteLine("Started monitoring game processes.");
-        }
-
-        private static void StopMonitoring()
-        {
-            monitoringCancellationTokenSource?.Cancel();
-            monitoringCancellationTokenSource = null;
-            Console.WriteLine("Stopped monitoring game processes.");
-        }
-
-        private static async Task MonitorGameProcesses(CancellationToken token)
+        private async Task MonitorGameProcesses(string selectedGame, CancellationToken token)
         {
             while (!token.IsCancellationRequested)
             {
                 var activeGame = GetActiveGameProcess();
                 if (activeGame != null)
                 {
-                    string gameName = Path.GetFileNameWithoutExtension(activeGame.MainModule.FileName).ToLower();
-                    string gameFolder = Path.Combine("assets", gameName);
+                    string gameFolder = Path.Combine("assets", selectedGame);
 
                     if (Directory.Exists(gameFolder))
                     {
                         templateMatching = new TemplateMatching(gameFolder);
-                        Console.WriteLine($"Detected {gameName}. Starting video analysis...");
+                        Console.WriteLine($"Detected {selectedGame}. Starting real-time analysis...");
 
-                        // Simulate real-time video capture and analysis
-                        await SimulateGameVideoAnalysis(activeGame.ProcessName);
+                        await CaptureAndAnalyzeGameFrames(activeGame, token);
 
-                        Console.WriteLine("Video analysis completed.");
+                        Console.WriteLine("Real-time analysis completed.");
                     }
                 }
 
@@ -248,39 +248,39 @@ namespace AimTrainerAI
             }
         }
 
-        private static Process GetActiveGameProcess()
+        private Process GetActiveGameProcess()
         {
             var processes = Process.GetProcesses();
-            return processes.FirstOrDefault(p => SupportedGames.Contains(p.ProcessName.ToLower() + ".exe"));
-        }
-
-        private static async Task SimulateGameVideoAnalysis(string gameName)
-        {
-            // Simulate video analysis by reading frames from a file or stream
-            // This should be replaced with actual game screen capturing in a real implementation
-            string videoPath = Path.Combine("sample_videos", $"{gameName}.mp4");
-            if (!File.Exists(videoPath)) return;
-
-            var capture = new VideoCapture(videoPath);
-            var totalFrames = capture.FrameCount;
-            var frameStep = totalFrames / 100;
-
-            for (var frameIndex = 0; frameIndex < totalFrames; frameIndex++)
+            Console.WriteLine("Active processes:");
+            foreach (var process in processes)
             {
-                Mat frame = new Mat();
-                capture.Read(frame);
-                if (frame.Empty())
-                    break;
-
-                AnalyzeFrame(frame, frameIndex);
-
-                if (frameIndex % frameStep == 0)
-                {
-                    Console.WriteLine($"Processed {frameIndex}/{totalFrames} frames.");
-                }
+                Console.WriteLine(process.ProcessName.ToLower());
             }
 
-            capture.Release();
+            var activeGame = processes.FirstOrDefault(p => SupportedGames.Contains(p.ProcessName.ToLower()));
+            if (activeGame != null)
+            {
+                Console.WriteLine($"Detected active game process: {activeGame.ProcessName}");
+            }
+            else
+            {
+                Console.WriteLine("No supported game process found.");
+            }
+            return activeGame;
+        }
+
+        private async Task CaptureAndAnalyzeGameFrames(Process gameProcess, CancellationToken token)
+        {
+            while (!token.IsCancellationRequested)
+            {
+                // Capture game screen
+                var frame = screenCapture.CaptureScreen();
+                if (frame != null)
+                {
+                    AnalyzeFrame(frame, 0); // You can implement better frame indexing if needed
+                }
+                await Task.Delay(33); // Capture frame every ~30ms (30 FPS)
+            }
         }
     }
 
@@ -309,7 +309,7 @@ namespace AimTrainerAI
 
         private void LoadTemplates(string gameFolder)
         {
-            string[] categories = { "crosshairs", "hit_vfx", "bullet_traces", "hit_markers", "enemy_outlines/default", "enemy_outlines/tritanopia", "enemy_outlines/deuteranopia", "enemy_outlines/protanopia" };
+            string[] categories = { "crosshairs", "hit_vfx", "bullet_traces", "hit_markers" };
             foreach (var category in categories)
             {
                 var categoryPath = Path.Combine(gameFolder, category);
@@ -344,4 +344,68 @@ namespace AimTrainerAI
         }
     }
 
+    public class ScreenCapture : IDisposable
+    {
+        private Device device;
+        private OutputDuplication outputDuplication;
+        private Texture2DDescription textureDesc;
+        private Texture2D screenTexture;
+
+        public ScreenCapture()
+        {
+            var factory = new Factory1();
+            var adapter = factory.GetAdapter1(0);
+            var output = adapter.Outputs[0];
+            var output1 = output.QueryInterface<Output1>();
+
+            device = new Device(adapter);
+
+            textureDesc = new Texture2DDescription
+            {
+                CpuAccessFlags = CpuAccessFlags.Read,
+                BindFlags = BindFlags.None,
+                Format = Format.B8G8R8A8_UNorm,
+                Width = output.Description.DesktopBounds.Right - output.Description.DesktopBounds.Left,
+                Height = output.Description.DesktopBounds.Bottom - output.Description.DesktopBounds.Top,
+                OptionFlags = ResourceOptionFlags.None,
+                MipLevels = 1,
+                ArraySize = 1,
+                SampleDescription = { Count = 1, Quality = 0 },
+                Usage = ResourceUsage.Staging
+            };
+
+            screenTexture = new Texture2D(device, textureDesc);
+            outputDuplication = output1.DuplicateOutput(device);
+        }
+
+        public Mat CaptureScreen()
+        {
+            SharpDX.DXGI.Resource screenResource;
+            OutputDuplicateFrameInformation duplicateFrameInformation;
+
+            // Remove the 'out' keyword from screenResource
+            outputDuplication.AcquireNextFrame(1000, out duplicateFrameInformation, ref screenResource);
+
+            using (var screenTexture2D = screenResource.QueryInterface<Texture2D>())
+            {
+                device.ImmediateContext.CopyResource(screenTexture2D, screenTexture);
+            }
+
+            var mapSource = device.ImmediateContext.MapSubresource(screenTexture, 0, MapMode.Read, SharpDX.Direct3D11.MapFlags.None);
+
+            var mat = new Mat(textureDesc.Height, textureDesc.Width, MatType.CV_8UC4, mapSource.DataPointer, mapSource.RowPitch);
+
+            device.ImmediateContext.UnmapSubresource(screenTexture, 0);
+            screenResource.Dispose();
+
+            return mat;
+        }
+
+        public void Dispose()
+        {
+            outputDuplication.Dispose();
+            screenTexture.Dispose();
+            device.Dispose();
+        }
+    }
 }
