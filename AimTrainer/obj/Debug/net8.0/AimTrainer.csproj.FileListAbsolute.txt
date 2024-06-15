@@ -1,0 +1,8 @@
+P:\Github\AimTrainer\AimTrainer\obj\Debug\net8.0\AimTrainer.csproj.AssemblyReference.cache
+P:\Github\AimTrainer\AimTrainer\obj\Debug\net8.0\Avalonia\Resources.Inputs.cache
+P:\Github\AimTrainer\AimTrainer\obj\Debug\net8.0\Avalonia\resources
+P:\Github\AimTrainer\AimTrainer\obj\Debug\net8.0\AimTrainer.GeneratedMSBuildEditorConfig.editorconfig
+P:\Github\AimTrainer\AimTrainer\obj\Debug\net8.0\AimTrainer.AssemblyInfoInputs.cache
+P:\Github\AimTrainer\AimTrainer\obj\Debug\net8.0\AimTrainer.AssemblyInfo.cs
+P:\Github\AimTrainer\AimTrainer\obj\Debug\net8.0\AimTrainer.csproj.CoreCompileInputs.cache
+P:\Github\AimTrainer\AimTrainer\obj\Debug\net8.0\AimTrainer.sourcelink.json

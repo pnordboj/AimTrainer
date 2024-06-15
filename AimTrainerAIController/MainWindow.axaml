@@ -1,0 +1,50 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="AimTrainerAIController.MainWindow"
+        Title="AimTrainerAI Controller"
+        Width="800" Height="600">
+	<Grid>
+		<Grid.RowDefinitions>
+			<RowDefinition Height="Auto"/>
+			<RowDefinition Height="Auto"/>
+			<RowDefinition Height="*"/>
+		</Grid.RowDefinitions>
+		<Grid.ColumnDefinitions>
+			<ColumnDefinition Width="*"/>
+		</Grid.ColumnDefinitions>
+
+		<!-- Header Section -->
+		<StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10" Spacing="10">
+			<ComboBox x:Name="GameSelectionComboBox" Width="200">
+				<ComboBoxItem Content="Valorant"/>
+				<ComboBoxItem Content="Fortnite"/>
+				<ComboBoxItem Content="Counter-Strike 2"/>
+			</ComboBox>
+			<Button Content="Start Monitoring" Click="StartMonitoring_Click" Width="150"/>
+			<Button Content="Stop Monitoring" Click="StopMonitoring_Click" Width="150"/>
+		</StackPanel>
+
+		<!-- Video Selection Section -->
+		<StackPanel Grid.Row="1" Margin="10" Spacing="10">
+			<Button Content="Add Video" Click="AddVideo_Click" Width="150"/>
+			<ListBox x:Name="VideoListBox" Width="400" Height="100"/>
+		</StackPanel>
+
+		<!-- Progress Section -->
+		<StackPanel Grid.Row="2" Margin="10" Spacing="10">
+			<ProgressBar x:Name="ProgressBar" Width="400" Height="20" Minimum="0" Maximum="100"/>
+			<TextBlock x:Name="ProgressPercentage" HorizontalAlignment="Center"/>
+			<TextBlock x:Name="StatusLabel"/>
+		</StackPanel>
+
+		<!-- Console Output Section -->
+		<ScrollViewer Grid.Row="3" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="10">
+			<TextBox x:Name="ConsoleOutput"
+                     Background="Black"
+                     Foreground="White"
+                     IsReadOnly="True"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap"/>
+		</ScrollViewer>
+	</Grid>
+</Window>
