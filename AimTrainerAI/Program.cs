@@ -150,7 +150,8 @@ namespace AimTrainerAI
 
             for (var frameIndex = 0; frameIndex < totalFrames; frameIndex++)
             {
-                capture.Read(out var frame);
+                Mat frame = new Mat();
+                capture.Read(frame);
                 if (frame.Empty())
                     break;
 
@@ -165,6 +166,7 @@ namespace AimTrainerAI
             capture.Release();
             Console.WriteLine("Video analysis completed.");
         }
+
 
         private void AnalyzeFrame(Mat frame, int frameIndex)
         {
@@ -383,8 +385,8 @@ namespace AimTrainerAI
             SharpDX.DXGI.Resource screenResource;
             OutputDuplicateFrameInformation duplicateFrameInformation;
 
-            // Remove the 'out' keyword from screenResource
-            outputDuplication.AcquireNextFrame(1000, out duplicateFrameInformation, ref screenResource);
+            outputDuplication.TryAcquireNextFrame(1000, out duplicateFrameInformation, out screenResource);
+
 
             using (var screenTexture2D = screenResource.QueryInterface<Texture2D>())
             {

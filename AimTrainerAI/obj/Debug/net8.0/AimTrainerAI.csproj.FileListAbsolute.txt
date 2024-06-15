@@ -36,3 +36,10 @@ P:\Github\AimTrainer\AimTrainerAI\obj\Debug\net8.0\refint\AimTrainerAI.dll
 P:\Github\AimTrainer\AimTrainerAI\obj\Debug\net8.0\AimTrainerAI.pdb
 P:\Github\AimTrainer\AimTrainerAI\obj\Debug\net8.0\AimTrainerAI.genruntimeconfig.cache
 P:\Github\AimTrainer\AimTrainerAI\obj\Debug\net8.0\ref\AimTrainerAI.dll
+P:\Github\AimTrainer\AimTrainerAI\bin\Debug\net8.0\SharpDX.dll
+P:\Github\AimTrainer\AimTrainerAI\bin\Debug\net8.0\SharpDX.Direct3D11.dll
+P:\Github\AimTrainer\AimTrainerAI\bin\Debug\net8.0\SharpDX.DXGI.dll
+P:\Github\AimTrainer\AimTrainerAI\bin\Debug\net8.0\runtimes\win-x64\native\OpenCvSharpExtern.dll
+P:\Github\AimTrainer\AimTrainerAI\bin\Debug\net8.0\runtimes\win-x64\native\opencv_videoio_ffmpeg490_64.dll
+P:\Github\AimTrainer\AimTrainerAI\bin\Debug\net8.0\runtimes\win-x86\native\OpenCvSharpExtern.dll
+P:\Github\AimTrainer\AimTrainerAI\bin\Debug\net8.0\runtimes\win-x86\native\opencv_videoio_ffmpeg490.dll

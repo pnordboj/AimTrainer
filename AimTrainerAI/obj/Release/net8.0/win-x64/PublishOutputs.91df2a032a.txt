@@ -1,0 +1,5 @@
+P:\Github\AimTrainer\AimTrainerAI\bin\Release\net8.0\win-x64\publish\AimTrainerAI.pdb
+P:\Github\AimTrainer\AimTrainerAI\bin\Release\net8.0\win-x64\publish\LdaNative.dll
+P:\Github\AimTrainer\AimTrainerAI\bin\Release\net8.0\win-x64\publish\OpenCvSharpExtern.dll
+P:\Github\AimTrainer\AimTrainerAI\bin\Release\net8.0\win-x64\publish\opencv_videoio_ffmpeg490_64.dll
+P:\Github\AimTrainer\AimTrainerAI\bin\Release\net8.0\win-x64\publish\AimTrainerAI.exe

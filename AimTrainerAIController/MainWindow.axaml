@@ -31,7 +31,7 @@
 		</StackPanel>
 		<Button Name="StartButton" Content="Start Monitoring" Width="150" Height="30" Click="StartButton_Click" Margin="0 0 0 10"/>
 		<Button Name="StopButton" Content="Stop Monitoring" Width="150" Height="30" Click="StopButton_Click"/>
-		<TextBlock Text="Progress:" Margin="0 20 0 0"/>
+		<TextBlock Name="ProgressText" Text="Progress:" Margin="0 20 0 0"/>
 		<ProgressBar Name="ProgressBar" Height="20" Margin="0 0 0 20"/>
 		<TextBlock Name="ProgressPercentage" Margin="0 0 0 20"/>
 		<TextBlock Text="Console Output:"/>
