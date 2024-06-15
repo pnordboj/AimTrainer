@@ -22,6 +22,9 @@ namespace AimTrainerAI
         private static PredictionEngine<TrainingData, AimPrediction> predictionEngine;
         private static CancellationTokenSource monitoringCancellationTokenSource;
 
+        // Store crosshair positions with timestamps
+        private static List<(int frameIndex, Point crosshairPosition)> crosshairHistory = new List<(int frameIndex, Point crosshairPosition)>();
+
         static async Task Main(string[] args)
         {
             mlContext = new MLContext();
@@ -97,7 +100,8 @@ namespace AimTrainerAI
 
             for (var frameIndex = 0; frameIndex < totalFrames; frameIndex++)
             {
-                capture.Read(out var frame);
+                Mat frame = new Mat();
+                capture.Read(frame);
                 if (frame.Empty())
                     break;
 
@@ -121,7 +125,15 @@ namespace AimTrainerAI
             (bool crosshairDetected, Point crosshairPosition) = templateMatching.MatchTemplate(grayFrame, "crosshairs");
             (bool hitDetected, Point hitPosition) = templateMatching.MatchTemplate(grayFrame, "hit_markers");
 
-            bool hit = hitDetected && IsPlayerHit(frameIndex);
+            if (crosshairDetected)
+            {
+                // Store the detected crosshair position and frame index
+                crosshairHistory.Add((frameIndex, crosshairPosition));
+            }
+
+            bool enemyDetected = DetectEnemyOutline(frame);
+
+            bool hit = hitDetected && enemyDetected && IsPlayerHit(frameIndex, hitPosition);
 
             var data = new TrainingData
             {
@@ -132,11 +144,46 @@ namespace AimTrainerAI
             trainingData.Add(data);
         }
 
-        private static bool IsPlayerHit(int frameIndex)
+        private static bool DetectEnemyOutline(Mat frame)
         {
-            // Placeholder for logic to determine if hit is made by the player
-            // Use frameIndex to determine timing of gunfire and correlate with hit marker
-            return true;
+            string[] outlineCategories = { "enemy_outlines/default", "enemy_outlines/tritanopia", "enemy_outlines/deuteranopia", "enemy_outlines/protanopia" };
+
+            foreach (var category in outlineCategories)
+            {
+                (bool detected, Point position) = templateMatching.MatchTemplate(frame, category);
+                if (detected)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+
+        private static bool IsPlayerHit(int frameIndex, Point hitPosition)
+        {
+            // Define the time window (in frames) and distance threshold for considering a hit
+            const int timeWindow = 10;
+            const int distanceThreshold = 50;
+
+            // Find crosshair positions within the time window
+            var relevantPositions = crosshairHistory
+                .Where(p => p.frameIndex >= frameIndex - timeWindow && p.frameIndex <= frameIndex)
+                .Select(p => p.crosshairPosition)
+                .ToList();
+
+            // Check if any crosshair position is close enough to the hit position
+            foreach (var position in relevantPositions)
+            {
+                double distance = Math.Sqrt(Math.Pow(position.X - hitPosition.X, 2) + Math.Pow(position.Y - hitPosition.Y, 2));
+                if (distance <= distanceThreshold)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static void TrainModel()
@@ -220,7 +267,8 @@ namespace AimTrainerAI
 
             for (var frameIndex = 0; frameIndex < totalFrames; frameIndex++)
             {
-                capture.Read(out var frame);
+                Mat frame = new Mat();
+                capture.Read(frame);
                 if (frame.Empty())
                     break;
 
@@ -261,7 +309,7 @@ namespace AimTrainerAI
 
         private void LoadTemplates(string gameFolder)
         {
-            string[] categories = { "crosshairs", "hit_vfx", "bullet_traces", "hit_markers" };
+            string[] categories = { "crosshairs", "hit_vfx", "bullet_traces", "hit_markers", "enemy_outlines/default", "enemy_outlines/tritanopia", "enemy_outlines/deuteranopia", "enemy_outlines/protanopia" };
             foreach (var category in categories)
             {
                 var categoryPath = Path.Combine(gameFolder, category);
@@ -295,4 +343,5 @@ namespace AimTrainerAI
             return (false, new Point());
         }
     }
+
 }

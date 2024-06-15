@@ -19,5 +19,6 @@
     <PackageReference Include="Microsoft.ML" Version="3.0.1" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="OpenCvSharp4" Version="4.9.0.20240103" />
+    <PackageReference Include="ReactiveUI" Version="20.1.1" />
   </ItemGroup>
 </Project>

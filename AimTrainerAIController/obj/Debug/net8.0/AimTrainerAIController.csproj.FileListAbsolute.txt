@@ -146,3 +146,7 @@ P:\Github\AimTrainer\AimTrainerAIController\obj\Debug\net8.0\AimTrainerAIControl
 P:\Github\AimTrainer\AimTrainerAIController\obj\Debug\net8.0\AimTrain.F142523B.Up2Date
 P:\Github\AimTrainer\AimTrainerAIController\obj\Debug\net8.0\AimTrainerAIController.genruntimeconfig.cache
 P:\Github\AimTrainer\AimTrainerAIController\obj\Debug\net8.0\ref\AimTrainerAIController.dll
+P:\Github\AimTrainer\AimTrainerAIController\bin\Debug\net8.0\DynamicData.dll
+P:\Github\AimTrainer\AimTrainerAIController\bin\Debug\net8.0\ReactiveUI.dll
+P:\Github\AimTrainer\AimTrainerAIController\bin\Debug\net8.0\Splat.dll
+P:\Github\AimTrainer\AimTrainerAIController\bin\Debug\net8.0\System.Reactive.dll

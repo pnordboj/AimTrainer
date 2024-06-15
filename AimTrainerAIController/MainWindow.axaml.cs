@@ -3,9 +3,10 @@ using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -13,144 +14,167 @@ namespace AimTrainerAIController
 {
     public partial class MainWindow : Window
     {
-        private Process aimTrainerAIProcess;
-        private CancellationTokenSource monitoringCancellationTokenSource;
-        private List<string> videoPaths = new List<string>();
+        private FileSystemWatcher fileWatcher;
+        private Process aimTrainerProcess;
+        private CancellationTokenSource cancellationTokenSource;
+        private double currentProgress = 0.0;
 
         public MainWindow()
         {
             InitializeComponent();
+            DataContext = this;
         }
 
         private void InitializeComponent()
         {
             AvaloniaXamlLoader.Load(this);
+            GameSelector = this.FindControl<ComboBox>("GameSelector");
+            ProgressBar = this.FindControl<ProgressBar>("ProgressBar");
+            ProgressPercentage = this.FindControl<TextBlock>("ProgressPercentage");
+            ConsoleOutput = this.FindControl<TextBox>("ConsoleOutput");
+            StatusLabel = this.FindControl<TextBlock>("StatusLabel");
         }
 
-        private async void AddVideo_Click(object sender, RoutedEventArgs e)
+        private void GameSelectionComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            var dialog = new OpenFileDialog
+            var selectedGame = (e.AddedItems[0] as ComboBoxItem)?.Content.ToString().ToLower();
+            if (!string.IsNullOrEmpty(selectedGame))
             {
-                Title = "Select Video",
-                Filters = new List<FileDialogFilter>
+                UpdateFileWatcher(selectedGame);
+            }
+        }
+
+        private void UpdateFileWatcher(string game)
+        {
+            var videoDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "videos", game);
+            if (fileWatcher != null)
+            {
+                fileWatcher.Dispose();
+            }
+
+            if (Directory.Exists(videoDirectory))
+            {
+                fileWatcher = new FileSystemWatcher(videoDirectory)
                 {
-                    new FileDialogFilter { Name = "Video Files", Extensions = { "mp4", "avi", "mkv" } }
-                },
-                AllowMultiple = true
-            };
+                    NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite
+                };
+                fileWatcher.Changed += OnVideoFilesChanged;
+                fileWatcher.Created += OnVideoFilesChanged;
+                fileWatcher.Deleted += OnVideoFilesChanged;
+                fileWatcher.EnableRaisingEvents = true;
+            }
+        }
 
-            var result = await dialog.ShowAsync(this);
-            if (result != null)
+        private void OnVideoFilesChanged(object sender, FileSystemEventArgs e)
+        {
+            // Handle file changes if needed
+        }
+
+        private void StartButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (aimTrainerProcess == null)
             {
-                foreach (var path in result)
+                string selectedGame = ((ComboBoxItem)GameSelector.SelectedItem)?.Content.ToString().ToLower();
+                string videoFolder = Path.Combine("videos", selectedGame);
+
+                if (!Directory.Exists(videoFolder))
                 {
-                    videoPaths.Add(path);
-                    var videoListBox = this.FindControl<ListBox>("VideoListBox");
-                    videoListBox.Items = new List<string>(videoPaths); // Refresh the list
-                }
-            }
-        }
-
-        private void StartMonitoring_Click(object sender, RoutedEventArgs e)
-        {
-            var selectedGame = (this.FindControl<ComboBox>("GameSelectionComboBox").SelectedItem as ComboBoxItem)?.Content.ToString();
-            if (string.IsNullOrEmpty(selectedGame))
-            {
-                ShowMessage("Please select a game.");
-                return;
-            }
-
-            if (videoPaths.Count == 0)
-            {
-                ShowMessage("Please add at least one video.");
-                return;
-            }
-
-            if (monitoringCancellationTokenSource != null)
-            {
-                ShowMessage("Monitoring is already running.");
-                return;
-            }
-
-            monitoringCancellationTokenSource = new CancellationTokenSource();
-            var token = monitoringCancellationTokenSource.Token;
-
-            Task.Run(() => StartAimTrainerAI(selectedGame, token), token);
-        }
-
-        private void StopMonitoring_Click(object sender, RoutedEventArgs e)
-        {
-            monitoringCancellationTokenSource?.Cancel();
-            monitoringCancellationTokenSource = null;
-            aimTrainerAIProcess?.Kill();
-            aimTrainerAIProcess = null;
-            ShowMessage("Stopped monitoring game processes.");
-        }
-
-        private async Task StartAimTrainerAI(string selectedGame, CancellationToken token)
-        {
-            var progressBar = this.FindControl<ProgressBar>("ProgressBar");
-            var progressPercentage = this.FindControl<TextBlock>("ProgressPercentage");
-            progressBar.Value = 0;
-
-            string exePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "AimTrainerAI.exe");
-            if (!File.Exists(exePath))
-            {
-                ShowMessage("AimTrainerAI.exe not found.");
-                return;
-            }
-
-            var startInfo = new ProcessStartInfo
-            {
-                FileName = exePath,
-                Arguments = $"{selectedGame.ToLower()} {string.Join(" ", videoPaths)}",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            aimTrainerAIProcess = new Process { StartInfo = startInfo };
-
-            aimTrainerAIProcess.OutputDataReceived += (sender, e) => UpdateConsoleOutput(e.Data);
-            aimTrainerAIProcess.ErrorDataReceived += (sender, e) => UpdateConsoleOutput(e.Data);
-
-            aimTrainerAIProcess.Start();
-            aimTrainerAIProcess.BeginOutputReadLine();
-            aimTrainerAIProcess.BeginErrorReadLine();
-
-            while (!aimTrainerAIProcess.HasExited)
-            {
-                if (token.IsCancellationRequested)
-                {
-                    aimTrainerAIProcess.Kill();
-                    break;
+                    UpdateConsoleOutput($"Error: Video folder for {selectedGame} does not exist.");
+                    return;
                 }
 
-                // Simulate progress update (in a real scenario, this would be updated based on actual processing progress)
-                double progress = GetProgressFromOutput(); // Implement this method to read actual progress
-                Dispatcher.UIThread.InvokeAsync(() =>
+                var videoFiles = Directory.GetFiles(videoFolder, "*.mp4");
+
+                if (videoFiles.Length == 0)
                 {
-                    progressBar.Value = progress;
-                    progressPercentage.Text = $"Model Training: {progress:0.00}%";
+                    UpdateConsoleOutput($"Error: No video files found in {videoFolder}.");
+                    return;
+                }
+
+                cancellationTokenSource = new CancellationTokenSource();
+
+                aimTrainerProcess = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = "AimTrainerAI.exe",
+                        Arguments = $"{selectedGame} {string.Join(" ", videoFiles)}",
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    }
+                };
+
+                aimTrainerProcess.OutputDataReceived += (s, ea) =>
+                {
+                    if (ea.Data != null)
+                    {
+                        Dispatcher.UIThread.Post(() =>
+                        {
+                            ConsoleOutput.Text += $"{ea.Data}\n";
+                            var progressText = GetProgressFromOutput(ea.Data);
+                            ProgressPercentage.Text = $"Model Training: {progressText}";
+                        });
+                    }
+                };
+
+                aimTrainerProcess.ErrorDataReceived += (s, ea) =>
+                {
+                    if (ea.Data != null)
+                    {
+                        Dispatcher.UIThread.Post(() =>
+                        {
+                            ConsoleOutput.Text += $"ERROR: {ea.Data}\n";
+                        });
+                    }
+                };
+
+                aimTrainerProcess.Start();
+                aimTrainerProcess.BeginOutputReadLine();
+                aimTrainerProcess.BeginErrorReadLine();
+
+                Task.Run(() => MonitorProgress(cancellationTokenSource.Token));
+            }
+        }
+
+        private void StopButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (aimTrainerProcess != null && !aimTrainerProcess.HasExited)
+            {
+                aimTrainerProcess.Kill();
+                aimTrainerProcess = null;
+                cancellationTokenSource.Cancel();
+                ConsoleOutput.Text += "Monitoring stopped.\n";
+            }
+        }
+
+        private async Task MonitorProgress(CancellationToken token)
+        {
+            while (!token.IsCancellationRequested)
+            {
+                double progress = currentProgress;
+                Dispatcher.UIThread.Post(() =>
+                {
+                    ProgressBar.Value = progress;
+                    ProgressPercentage.Text = $"Model Training: {progress:0.00}%";
                 });
 
-                await Task.Delay(100); // Adjust delay as needed
-            }
-
-            aimTrainerAIProcess?.WaitForExit();
-            aimTrainerAIProcess = null;
-
-            if (progressBar.Value >= 100)
-            {
-                ShowMessage("Model training completed.");
+                await Task.Delay(1000); // Adjust delay as needed
             }
         }
 
-        private double GetProgressFromOutput()
+        private string GetProgressFromOutput(string output)
         {
-            // Placeholder for actual implementation to get progress from AimTrainerAI output
-            return new Random().NextDouble() * 100;
+            // Extract progress from output if available
+            string pattern = @"Progress:\s*(\d+(\.\d+)?)%";
+            Match match = Regex.Match(output, pattern);
+            if (match.Success)
+            {
+                currentProgress = double.Parse(match.Groups[1].Value);
+                return currentProgress.ToString("0.00");
+            }
+            return string.Empty;
         }
 
         private void UpdateConsoleOutput(string output)
@@ -162,6 +186,10 @@ namespace AimTrainerAIController
                 var consoleOutput = this.FindControl<TextBox>("ConsoleOutput");
                 consoleOutput.Text += $"{output}\n";
                 consoleOutput.CaretIndex = consoleOutput.Text.Length; // Auto-scroll to the bottom
+
+                double progress = GetProgressFromOutput(output);
+                var progressPercentage = this.FindControl<TextBlock>("ProgressPercentage");
+                progressPercentage.Text = $"Model Training: {progress:0.00}%";
             });
         }
 
